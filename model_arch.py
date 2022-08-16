@@ -27,9 +27,9 @@ class DQN_Agent(nn.Module):
         x = self.relu2(x)
         x = self.conv3(x)
         x = self.relu3(x)
-        print('x.shape=',x.shape)
+        #print('x.shape=',x.shape)
         x = torch.flatten(x,1)
-        print('x.shape=',x.shape)
+        #print('x.shape=',x.shape)
         x = self.fc1(x)
         x = self.fc2(x)
 
