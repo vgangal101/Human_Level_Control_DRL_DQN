@@ -12,10 +12,6 @@ from torch.optim import RMSprop
 # would you rather create a list which if the size exceeded max_size, we wrap around,
 # obviously maintain a counter
 
-
-
-
-
 class ReplayMemory:
     def __init__(self,max_size):
         self.max_size = max_size
@@ -54,11 +50,13 @@ def convert_to_tensor(sample):
         next_state_tensor.append(next_state)
         done_t.append(done)
 
-    prev_state_tensor = torch.tensor(np.array(prev_state_tensor))
-    action_t = torch.tensor(action_t)
-    reward_t = torch.tensor(reward_t)
-    next_state_tensor = torch.tensor(np.array(next_state_tensor))
-    done_t = torch.tensor(done_t)
+    prev_state_tensor = torch.tensor(np.array(prev_state_tensor),dtype=torch.float32)
+    action_t = torch.tensor(action_t,dtype=torch.int64)
+    reward_t = torch.tensor(reward_t, dtype=torch.float32)
+    next_state_tensor = torch.tensor(np.array(next_state_tensor),dtype=torch.float32)
+    done_t = torch.tensor(done_t,dtype=torch.int64)
+
+
 
     return prev_state_tensor, action_t, reward_t, next_state_tensor, done_t 
     
@@ -71,6 +69,15 @@ def process_env(env):
     env = NoOpReset(env)
 
     return env
+
+def graph_episode_length(data):
+    plt.plot(data)
+    plt.save('ep_num-vs-episode_length.png')
+
+def graph_reward(data):
+    plt.plot(data)
+    plt.save('timesteps_vs_reward.png') 
+
 
 # input env is already processed
 def train(env):
@@ -105,6 +112,9 @@ def train(env):
 
     # implement the first bit first , then write remainder
 
+    
+
+
     def annealed_epsilon(step):
         return initial_exploration + (final_exploration - initial_exploration) * min(1, step / final_exploration_frame)
 
@@ -123,7 +133,7 @@ def train(env):
 
     def compute_targets(prev_state, action, reward, next_state, done):
 
-        number_of_samples = prev_state[0]
+        number_of_samples = prev_state.shape[0]
         target_values = []
 
 
@@ -132,12 +142,13 @@ def train(env):
             current_action = action[sample_num]
             current_reward = reward[sample_num]
             current_next_state = next_state[sample_num]
-            current_done = next_state[sample_num]
+            current_done = done[sample_num]
 
             if current_done:
                 target_values.append(current_reward)
             else:
-                target_val = (current_reward + discount_factor_gamma * torch.max(target_q_network(current_next_state,current_action))).item()
+                current_next_state = torch.unsqueeze(current_next_state,0)
+                target_val = (current_reward + discount_factor_gamma * torch.max(target_q_network(current_next_state))).item()
                 target_values.append(target_val)
 
         target_values = torch.tensor(np.array(target_values))
@@ -176,21 +187,22 @@ def train(env):
 
     #prev_state, action, reward, next_state, done = convert_to_tensor(replay_mem.sample(32))
     
+    # information for graphing related material 
+
+    # track episode length , i.e episode number to steps in episode 
+    episode_length_tracker = []
+    # track rewards over time steps , timesteps to reward value 
+    reward_tracker = []
     
     # some ways to handle : https://discuss.pytorch.org/t/copying-weights-from-one-net-to-another/1492
     # alternate approach - net1.load_state_dict(net2.state_dict()), helpful later in the loop
 
     # initialize action-value function Q with random weights (theta)
-    policy_q_network = DQN_Agent(env.num_actions)
+    policy_q_network = DQN_Agent(env.action_space.n)
 
     # intialize target action-value function Q^ with weights equal to NN above
-    target_q_network = DQN_Agent(env.num_actions)
+    target_q_network = DQN_Agent(env.action_space.n)
     target_q_network.load_state_dict(policy_q_network.state_dict())
-
-
-
-
-
 
     # Use HuberLoss 
     huber_loss_fn = torch.nn.HuberLoss()
@@ -201,12 +213,12 @@ def train(env):
 
     timesteps_total = 0
 
-    for ep_num in range(5000):
+    for _ in range(5000):
 
     # Here need to prime the sequence
 
         obs = env.reset()
-        for t in range(100):
+        for t in range(2000):
             current_epsilon = annealed_epsilon(timesteps_total)
 
             # With probability epsilon select a random action At,
@@ -215,6 +227,8 @@ def train(env):
             
             # execute action At in emulator and observe reward Rt and image Xt+1
             next_obs, reward, done, info = env.step(action)
+
+            reward_tracker.append(reward)
             
             experience = (obs, action, reward, next_obs, done)
 
@@ -227,7 +241,7 @@ def train(env):
             Yj = compute_targets(prev_state, action, reward, next_state, done)
 
 
-            policy_predictions = policy_q_network(prev_state)
+            policy_predictions = torch.max(policy_q_network(prev_state),1).values
             loss = huber_loss_fn(Yj,policy_predictions)
 
 
@@ -237,24 +251,28 @@ def train(env):
             
             optimizer.step()
             
-
-
-
-
-            #set St+1 = St, At,
-
-
-
             # very last step before loop exit , 
             timesteps_total += 1 
         
-        if timesteps_total % C == 0:
-            target_q_network.load_state_dict(policy_q_network.state_dict()) 
+            if timesteps_total % C == 0:
+                target_q_network.load_state_dict(policy_q_network.state_dict()) 
+
+            if done: 
+                episode_length_tracker.append(t) 
+                break
 
 
 
 
-    return
+    # save policy network and 
+    torch.save(policy_q_network,'q_network.pt')
+
+    graph_reward(reward_tracker)
+    graph_episode_length(episode_length_tracker)
+
+    return 
+
+    #return policy_q_network, target_q_network
 
 
 
@@ -271,6 +289,7 @@ def main():
     env = process_env(env)
     #print(env)
     train(env)
+
 
 
 if __name__ == '__main__':
