@@ -9,16 +9,15 @@ import torch.nn as nn
 class DQN_Agent(nn.Module):
     def __init__(self,num_actions):
         # input to the network is 84 x 84 x 4
-        super()
+        super().__init__()
         self.conv1 = nn.Conv2d(4,32,(8,8),stride=4)
         self.relu1 = nn.ReLU()
         self.conv2 = nn.Conv2d(32,64,(4,4),stride=2)
         self.relu2 = nn.ReLU()
         self.conv3 = nn.Conv2d(64,64,(3,3),stride=1)
         self.relu3 = nn.ReLU()
-        self.fc1 = nn.Dense(64*7*7,512)
-        self.fc2 = nn.Dense(512,num_actions)
-        #self.fc1 = nn.Dense()
+        self.fc1 = nn.Linear(64*7*7,512)
+        self.fc2 = nn.Linear(512,num_actions)
 
     def forward(self,x):
         x = self.conv1(x)
