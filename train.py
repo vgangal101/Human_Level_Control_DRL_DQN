@@ -181,7 +181,7 @@ def train(env):
     # alternate approach - net1.load_state_dict(net2.state_dict()), helpful later in the loop
 
     # initialize action-value function Q with random weights (theta)
-    policy_q_network = DQN_Agent(env.num_actions)
+    policy_q_network = DQN_Agent(env.action_space.n)
 
     # intialize target action-value function Q^ with weights equal to NN above
     target_q_network = DQN_Agent(env.num_actions)
