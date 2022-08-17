@@ -216,9 +216,11 @@ def train(env):
     for _ in range(5000):
 
     # Here need to prime the sequence
-
+        done = False 
         obs = env.reset()
-        for t in range(2000):
+        timestep_start = timesteps_total
+        timestep_end = timesteps_total
+        while not done: 
             current_epsilon = annealed_epsilon(timesteps_total)
 
             # With probability epsilon select a random action At,
@@ -252,14 +254,13 @@ def train(env):
             optimizer.step()
             
             # very last step before loop exit , 
-            timesteps_total += 1 
+            timesteps_total += 1
+            timestep_end += 1 
         
             if timesteps_total % C == 0:
                 target_q_network.load_state_dict(policy_q_network.state_dict()) 
 
-            if done: 
-                episode_length_tracker.append(t) 
-                break
+        episode_length_tracker.append(timestep_end - timestep_start)    
 
 
 
