@@ -3,15 +3,12 @@ from collections import deque
 import random
 from preprocessing_wrappers import ClipReward, FrameskippingAndMax, FrameStacking, NoOpReset, ResizeTo84by84
 import gym
-#from gym.wrappers import
 import torch
 import numpy as np
 from model_arch import DQN_Agent
 from torch.optim import RMSprop
 import matplotlib.pyplot as plt
 
-# would you rather create a list which if the size exceeded max_size, we wrap around,
-# obviously maintain a counter
 
 class ReplayMemory:
     def __init__(self,max_size):
@@ -95,14 +92,13 @@ def evaluate(env, policy_q_network):
     episode_length_tracker = []
     reward_tracker = []
 
-    # SHOULD RUN FOR 30 episodes not 1 !!!, 1 is for debugging
-    for ep_num in range(1):
+    
+    for ep_num in range(30):
         eps_end = 0
         done = False 
         obs = env.reset()
         episode_total_reward = 0 
         obs = torch.tensor(obs,dtype=torch.float32).unsqueeze(0).to(device)
-        #obs = obs.unsqueeze(0)
         while not done:
 
             action = select_action(obs)
@@ -111,19 +107,20 @@ def evaluate(env, policy_q_network):
             episode_total_reward += reward
 
             timesteps_total += 1 
+            eps_end += 1
 
             if done: 
                 episode_length_tracker.append(eps_end)
                 reward_tracker.append(episode_total_reward)
                 eps_end = 0 
 
-            eps_end += 1 
+             
 
     mean_episode_length = np.mean(episode_length_tracker)
     mean_reward = np.mean(reward_tracker)
 
     with open('evaluation_results.txt','w') as f:
-        f.write(f'evaluation results\n')
+        f.write(f'evaluation results \n')
         f.write(f'mean_episode_length={mean_episode_length} \n')
         f.write(f'mean_reward={mean_reward} \n')
 
@@ -256,17 +253,14 @@ def train(env):
     # initialize replay memory to capacity N
     replay_mem = ReplayMemory(replay_memory_size)
 
-    print('Initialized replay mem ')
+    print('Initialized replay mem')
 
     print("Storing data in Replay Memory")
 
-
-    
     obs  = env.reset()
     prev_state = obs
 
-    #for i in range(replay_start_size):
-    for i in range(64):
+    for i in range(replay_start_size):
 
         action = env.action_space.sample()
         obs, reward, done, info = env.step(action)
@@ -310,13 +304,10 @@ def train(env):
 
     optimizer = RMSprop(policy_q_network.parameters(),lr=lr,momentum=grad_momentum,eps=min_squared_gradient)
 
-    # For episode =1 , M do
-
+    
     timesteps_total = 0
 
-    #for _ in range(5000):
-    for ep_num in range(1):
-    # Here need to prime the sequence
+    for ep_num in range(5000):
         done = False 
         obs = env.reset()
         timestep_start = timesteps_total
