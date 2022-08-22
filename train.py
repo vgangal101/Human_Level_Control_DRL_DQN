@@ -65,8 +65,8 @@ def convert_to_tensor(sample):
 def evaluation_process_env(env):
     env = ResizeTo84by84(env)
     env = ClipReward(env)
-    env = FrameskippingAndMax(env,skip=6)
-    env = FrameStacking(env,6)
+    env = FrameskippingAndMax(env,skip=4)
+    env = FrameStacking(env,4)
     env = NoOpReset(env)
 
     return env
@@ -95,27 +95,37 @@ def evaluate(env, policy_q_network):
     episode_length_tracker = []
     reward_tracker = []
 
-
-    for ep_num in range(30):
-        eps_start = 0
+    # SHOULD RUN FOR 30 episodes not 1 !!!, 1 is for debugging
+    for ep_num in range(1):
         eps_end = 0
         done = False 
         obs = env.reset()
+        episode_total_reward = 0 
+        obs = torch.tensor(obs,dtype=torch.float32).unsqueeze(0).to(device)
+        #obs = obs.unsqueeze(0)
         while not done:
 
             action = select_action(obs)
             obs, reward, done, info = env.step(action)
+            obs = torch.tensor(obs,dtype=torch.float32).unsqueeze(0).to(device)
+            episode_total_reward += reward
 
             timesteps_total += 1 
 
             if done: 
-                episode_length_tracker.append(eps_end - eps_start)
-                reward_tracker.append(reward)
+                episode_length_tracker.append(eps_end)
+                reward_tracker.append(episode_total_reward)
                 eps_end = 0 
 
             eps_end += 1 
 
+    mean_episode_length = np.mean(episode_length_tracker)
+    mean_reward = np.mean(reward_tracker)
 
+    with open('evaluation_results.txt','w') as f:
+        f.write(f'evaluation results\n')
+        f.write(f'mean_episode_length={mean_episode_length} \n')
+        f.write(f'mean_reward={mean_reward} \n')
 
     return 
             
@@ -142,9 +152,9 @@ def graph_episode_length(data,eval=False):
         header = 'Training'
 
     
-    plt.save(f'{header}--ep_num-vs-episode_length.png')
+    plt.savefig(f'{header}--ep_num-vs-episode_length.png')
 
-def graph_training_reward(data,eval=False):
+def graph_reward(data,eval=False):
     plt.plot(data)
     plt.xlabel('timesteps')
     plt.ylabel('Reward')
@@ -155,7 +165,7 @@ def graph_training_reward(data,eval=False):
     else: 
         header = 'Training'
 
-    plt.save(f'{header}--timesteps_vs_reward.png') 
+    plt.savefig(f'{header}--timesteps_vs_reward.png') 
 
 
 # input env is already processed
@@ -292,9 +302,9 @@ def train(env):
     # intialize target action-value function Q^ with weights equal to NN above
     target_q_network = DQN_Agent(env.action_space.n)
     target_q_network.load_state_dict(policy_q_network.state_dict())
-    target_q_network.to(device)
     target_q_network.eval()
-
+    target_q_network.to(device)
+    
     # Use HuberLoss 
     loss_fn = torch.nn.SmoothL1Loss()
 
@@ -331,12 +341,19 @@ def train(env):
             # sample data from experience replay 
             sample_prev_state, sample_action, sample_reward, sample_next_state, sample_done = convert_to_tensor(replay_mem.sample(minibatch_size))
 
+            
+            # place data on GPU
             sample_prev_state = sample_prev_state.to(device)
             sample_action = sample_action.to(device)
+            
+            
             Yj = compute_targets(sample_prev_state, sample_action, sample_reward, sample_next_state, sample_done, device)
+            Yj = Yj.to(device)
 
-
-            policy_predictions = policy_q_network(sample_prev_state).gather(1, sample_actions)
+            # converting to a 32x1 tensor s.t. gather operation works as intended 
+            sample_action_index = sample_action.unsqueeze(0)
+            
+            policy_predictions = (policy_q_network(sample_prev_state).gather(1,sample_action_index)).squeeze()
             
             loss = loss_fn(Yj,policy_predictions)
 
@@ -357,7 +374,8 @@ def train(env):
             if timesteps_total % C == 0:
                 target_q_network.load_state_dict(policy_q_network.state_dict()) 
 
-        episode_length_tracker.append(timestep_end - timestep_start)    
+        episode_length_tracker.append(timestep_end - timestep_start)
+        print(f'completed train episode {ep_num}')    
 
 
 
@@ -379,10 +397,12 @@ def main():
     env = gym.make('Pong-v0',obs_type='grayscale')
     env = env.unwrapped
     print(env)
-    env = train_process_env(env)
+    train_env = train_process_env(env)
     #print(env)
-    agent_network = train(env)
-    evaluate(agent_network)
+    agent_network = train(train_env)
+    eval_env = evaluation_process_env(env)
+
+    evaluate(eval_env, agent_network)
 
 
 
