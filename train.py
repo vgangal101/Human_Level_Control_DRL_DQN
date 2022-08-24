@@ -56,10 +56,10 @@ def convert_to_tensor(sample):
         next_state = s[3]
         done = s[4]
         
-        prev_state_tensor.append(prev_state)
+        prev_state_tensor.append(np.array(prev_state).reshape(4,84,84))
         action_t.append(action)
         reward_t.append(reward)
-        next_state_tensor.append(next_state)
+        next_state_tensor.append(np.array(next_state).reshape(4,84,84))
         done_t.append(done)
 
     prev_state_tensor = torch.tensor(np.array(prev_state_tensor),dtype=torch.float32)
@@ -68,9 +68,11 @@ def convert_to_tensor(sample):
     next_state_tensor = torch.tensor(np.array(next_state_tensor),dtype=torch.float32)
     done_t = torch.tensor(done_t,dtype=torch.int64)
 
+    
 
 
-    return prev_state_tensor, action_t, reward_t, next_state_tensor, done_t 
+
+    return normalize_image_tensor(prev_state_tensor), action_t, reward_t, normalize_image_tensor(next_state_tensor), done_t 
 
 
 def make_env(env):
@@ -82,6 +84,9 @@ def make_env(env):
 def normalize_image_tensor(img_tensor):
     return img_tensor / 255.0
 
+
+def convert_to_size(tensor):
+    return tensor.reshape(1,4,84,84)
 
 def evaluate(env, policy_q_network):
     
@@ -97,7 +102,9 @@ def evaluate(env, policy_q_network):
             return env.action_space.sample()
         else:
             state = torch.tensor(state)
-            state.to(device)
+            state = state.reshape(1,4,84,84)
+            state = state.to(device)
+            
             with torch.no_grad():
                 action = torch.argmax(policy_q_network(state))
             return action
@@ -264,7 +271,8 @@ def train(env):
     obs  = env.reset()
     prev_state = obs
 
-    for i in range(replay_start_size):
+    # loop value needs to be set to replay_start_size
+    for i in range(64):
 
         action = env.action_space.sample()
         obs, reward, done, info = env.step(action)
@@ -311,7 +319,7 @@ def train(env):
     
     timesteps_total = 0
 
-    for ep_num in range(5000):
+    for ep_num in range(1):
         done = False 
         obs = env.reset()
         timestep_start = timesteps_total
@@ -341,7 +349,7 @@ def train(env):
             sample_prev_state = sample_prev_state.to(device)
             sample_action = sample_action.to(device)
             
-            
+            # probably needs fixing 
             Yj = compute_targets(sample_prev_state, sample_action, sample_reward, sample_next_state, sample_done, device)
             Yj = Yj.to(device)
 
@@ -370,7 +378,8 @@ def train(env):
                 target_q_network.load_state_dict(policy_q_network.state_dict()) 
 
         episode_length_tracker.append(timestep_end - timestep_start)
-        print(f'completed train episode {ep_num}')    
+        print(f'completed train episode {ep_num}')
+        print(f'')    
 
 
 
