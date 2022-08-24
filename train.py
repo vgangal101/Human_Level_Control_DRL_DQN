@@ -1,13 +1,27 @@
 import argparse
 from collections import deque
 import random
-from preprocessing_wrappers import ClipReward, FrameskippingAndMax, FrameStacking, NoOpReset, ResizeTo84by84
+from preprocessing_wrappers2 import make_atari, wrap_deepmind
 import gym
 import torch
 import numpy as np
 from model_arch import DQN_Agent
 from torch.optim import RMSprop
 import matplotlib.pyplot as plt
+
+
+# test on all of these !!
+env_mapper = {'Pong':'PongNoFrameskip-v4',
+               'Breakout': 'BreakoutNoFrameskip-v4',
+               'Atlantis':'AtlantisNoFrameskip-v4'}
+
+
+
+def get_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--env_name',type=str,default='Pong')
+    args = parser.parse_args()
+    return args
 
 
 class ReplayMemory:
@@ -59,14 +73,14 @@ def convert_to_tensor(sample):
     return prev_state_tensor, action_t, reward_t, next_state_tensor, done_t 
 
 
-def evaluation_process_env(env):
-    env = ResizeTo84by84(env)
-    env = ClipReward(env)
-    env = FrameskippingAndMax(env,skip=4)
-    env = FrameStacking(env,4)
-    env = NoOpReset(env)
-
+def make_env(env):
+    env = make_atari(env)
+    env = wrap_deepmind(env,frame_stack=True,scale=False)
     return env
+
+
+def normalize_image_tensor(img_tensor):
+    return img_tensor / 255.0
 
 
 def evaluate(env, policy_q_network):
@@ -126,16 +140,6 @@ def evaluate(env, policy_q_network):
 
     return 
             
-
-
-def train_process_env(env):
-    env = ResizeTo84by84(env)
-    env = ClipReward(env)
-    env = FrameskippingAndMax(env,skip=4)
-    env = FrameStacking(env,4)
-    env = NoOpReset(env)
-
-    return env
 
 def graph_episode_length(data,eval=False):
     plt.plot(data)
@@ -204,7 +208,7 @@ def train(env):
     else: 
         device = torch.device('cpu')
 
-    print(device)
+    #print(device)
 
     def annealed_epsilon(step):
         return initial_exploration + (final_exploration - initial_exploration) * min(1, step / final_exploration_frame)
@@ -382,17 +386,10 @@ def train(env):
 
 
 def main():
-
-    #args = get_args()
-
-    env = gym.make('Pong-v0',obs_type='grayscale')
-    env = env.unwrapped
-    print(env)
-    train_env = train_process_env(env)
-    #print(env)
+    env = env_mapper['Pong']
+    train_env = make_env(env)
     agent_network = train(train_env)
-    eval_env = evaluation_process_env(env)
-
+    eval_env = make_env(env)
     evaluate(eval_env, agent_network)
 
 
