@@ -67,11 +67,6 @@ def convert_to_tensor(sample):
     reward_t = torch.tensor(reward_t, dtype=torch.float32)
     next_state_tensor = torch.tensor(np.array(next_state_tensor),dtype=torch.float32)
     done_t = torch.tensor(done_t,dtype=torch.int64)
-
-    
-
-
-
     return normalize_image_tensor(prev_state_tensor), action_t, reward_t, normalize_image_tensor(next_state_tensor), done_t 
 
 
@@ -85,11 +80,11 @@ def normalize_image_tensor(img_tensor):
     return img_tensor / 255.0
 
 
-def convert_to_size(tensor):
-    return tensor.reshape(1,4,84,84)
 
 def evaluate(env, policy_q_network):
     
+    print('Doing evaluation')
+
     if torch.cuda.is_available():
         device = torch.device('cuda:0')
     else: 
@@ -144,6 +139,8 @@ def evaluate(env, policy_q_network):
         f.write(f'evaluation results \n')
         f.write(f'mean_episode_length={mean_episode_length} \n')
         f.write(f'mean_reward={mean_reward} \n')
+
+    print('Evaluation finished')
 
     return 
             
@@ -229,8 +226,9 @@ def train(env):
             return env.action_space.sample()
         else:
 
-            state = torch.tensor(state)
-            state.to(device)
+            state = torch.tensor(state,dtype=torch.float32)
+            state = state.reshape((state.shape[0],state.shape[-2],state.shape[-3],state.shape[-4]))
+            state = state.to(device)
             with torch.no_grad():
                 action = torch.argmax(policy_q_network(state))
             return action
@@ -272,7 +270,7 @@ def train(env):
     prev_state = obs
 
     # loop value needs to be set to replay_start_size
-    for i in range(64):
+    for i in range(replay_memory_size):
 
         action = env.action_space.sample()
         obs, reward, done, info = env.step(action)
@@ -319,11 +317,10 @@ def train(env):
     
     timesteps_total = 0
 
-    for ep_num in range(1):
+    for ep_num in range(5000):
         done = False 
         obs = env.reset()
-        timestep_start = timesteps_total
-        timestep_end = timesteps_total
+        timestep_end = 0
         while not done: 
             current_epsilon = annealed_epsilon(timesteps_total)
 
@@ -377,9 +374,9 @@ def train(env):
             if timesteps_total % C == 0:
                 target_q_network.load_state_dict(policy_q_network.state_dict()) 
 
-        episode_length_tracker.append(timestep_end - timestep_start)
+        episode_length_tracker.append(timestep_end)
         print(f'completed train episode {ep_num}')
-        print(f'')    
+        print(f'timesteps for episode={timestep_end}')    
 
 
 
