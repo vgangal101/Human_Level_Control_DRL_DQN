@@ -227,7 +227,7 @@ def train(env):
         else:
 
             state = torch.tensor(state,dtype=torch.float32)
-            state = state.reshape((state.shape[0],state.shape[-2],state.shape[-3],state.shape[-4]))
+            state = state.reshape((1,4,84,84))
             state = state.to(device)
             with torch.no_grad():
                 action = torch.argmax(policy_q_network(state))
@@ -270,7 +270,7 @@ def train(env):
     prev_state = obs
 
     # loop value needs to be set to replay_start_size
-    for i in range(replay_memory_size):
+    for i in range(replay_start_size):
 
         action = env.action_space.sample()
         obs, reward, done, info = env.step(action)
@@ -337,6 +337,7 @@ def train(env):
 
             replay_mem.store(experience)
 
+            
 
             # sample data from experience replay 
             sample_prev_state, sample_action, sample_reward, sample_next_state, sample_done = convert_to_tensor(replay_mem.sample(minibatch_size))
@@ -367,7 +368,10 @@ def train(env):
             
             optimizer.step()
             
-            # very last step before loop exit , 
+            # switch the obs , the new obs becomes the current observation
+            obs = next_obs
+
+            # very last step before loop exit ,
             timesteps_total += 1
             timestep_end += 1 
         
