@@ -213,14 +213,14 @@ def train(env):
 
     timesteps_total = 0
 
-    for _ in range(5000):
+    for _ in range(5000): # number episode 
 
     # Here need to prime the sequence
         done = False 
         obs = env.reset()
         timestep_start = timesteps_total
         timestep_end = timesteps_total
-        while not done: 
+        while not done:  # for 1 episode 
             current_epsilon = annealed_epsilon(timesteps_total)
 
             # With probability epsilon select a random action At,
@@ -238,9 +238,9 @@ def train(env):
 
 
             # sample data from experience replay 
-            prev_state, action, reward, next_state, done = convert_to_tensor(replay_mem.sample(minibatch_size))
+            sample_prev_state, sample_action, sample_reward, sample_next_state, sample_done = convert_to_tensor(replay_mem.sample(minibatch_size))
 
-            Yj = compute_targets(prev_state, action, reward, next_state, done)
+            Yj = compute_targets(sample_prev_state, sample_action, sample_reward, sample_next_state, sample_done)
 
 
             policy_predictions = torch.max(policy_q_network(prev_state),1).values
@@ -263,10 +263,12 @@ def train(env):
         episode_length_tracker.append(timestep_end - timestep_start)    
 
 
+        # DO A EVALUATION EPISODE - 10 eval episodes , take average of return , episode length  
+
 
 
     # save policy network and 
-    torch.save(policy_q_network,'q_network.pt')
+    torch.save(policy_q_network,'policy_q_network.pt')
 
     graph_reward(reward_tracker)
     graph_episode_length(episode_length_tracker)
