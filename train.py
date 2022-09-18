@@ -307,13 +307,7 @@ def train(env):
     
     timesteps_total = 0
 
-<<<<<<< HEAD
-    for _ in range(5000): # number episode 
-
-    # Here need to prime the sequence
-=======
     for ep_num in range(5000):
->>>>>>> 323f0ed70ee49a56b1c74478472105305714ba6d
         done = False 
         obs = env.reset()
         timestep_start = timesteps_total
@@ -337,11 +331,6 @@ def train(env):
 
             # sample data from experience replay 
             sample_prev_state, sample_action, sample_reward, sample_next_state, sample_done = convert_to_tensor(replay_mem.sample(minibatch_size))
-<<<<<<< HEAD
-
-            Yj = compute_targets(sample_prev_state, sample_action, sample_reward, sample_next_state, sample_done)
-=======
->>>>>>> 323f0ed70ee49a56b1c74478472105305714ba6d
 
             
             # place data on GPU
@@ -398,7 +387,7 @@ def main():
 
     #args = get_args()
 
-    env = gym.make('Pong-v0',obs_type='grayscale')
+    env = gym.make('PongNoFrameskip-v4',obs_type='grayscale')
     env = env.unwrapped
     print(env)
     train_env = train_process_env(env)
