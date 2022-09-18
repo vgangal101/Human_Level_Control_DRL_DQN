@@ -3,14 +3,12 @@ from collections import deque
 import random
 from preprocessing_wrappers import ClipReward, FrameskippingAndMax, FrameStacking, NoOpReset, ResizeTo84by84
 import gym
-#from gym.wrappers import
 import torch
 import numpy as np
 from model_arch import DQN_Agent
 from torch.optim import RMSprop
+import matplotlib.pyplot as plt
 
-# would you rather create a list which if the size exceeded max_size, we wrap around,
-# obviously maintain a counter
 
 class ReplayMemory:
     def __init__(self,max_size):
@@ -59,24 +57,112 @@ def convert_to_tensor(sample):
 
 
     return prev_state_tensor, action_t, reward_t, next_state_tensor, done_t 
-    
 
-def process_env(env):
+
+def evaluation_process_env(env):
     env = ResizeTo84by84(env)
     env = ClipReward(env)
-    env = FrameskippingAndMax(env)
+    env = FrameskippingAndMax(env,skip=4)
     env = FrameStacking(env,4)
     env = NoOpReset(env)
 
     return env
 
-def graph_episode_length(data):
-    plt.plot(data)
-    plt.save('ep_num-vs-episode_length.png')
 
-def graph_reward(data):
+def evaluate(env, policy_q_network):
+    
+    if torch.cuda.is_available():
+        device = torch.device('cuda:0')
+    else: 
+        device = torch.device('cpu')
+
+    def select_action(state):
+        probability = np.random.uniform()
+
+        if probability < 0.05:
+            return env.action_space.sample()
+        else:
+            state = torch.tensor(state)
+            state.to(device)
+            with torch.no_grad():
+                action = torch.argmax(policy_q_network(state))
+            return action
+
+    timesteps_total = 0
+    episode_length_tracker = []
+    reward_tracker = []
+
+    
+    for ep_num in range(30):
+        eps_end = 0
+        done = False 
+        obs = env.reset()
+        episode_total_reward = 0 
+        obs = torch.tensor(obs,dtype=torch.float32).unsqueeze(0).to(device)
+        while not done:
+
+            action = select_action(obs)
+            obs, reward, done, info = env.step(action)
+            obs = torch.tensor(obs,dtype=torch.float32).unsqueeze(0).to(device)
+            episode_total_reward += reward
+
+            timesteps_total += 1 
+            eps_end += 1
+
+            if done: 
+                episode_length_tracker.append(eps_end)
+                reward_tracker.append(episode_total_reward)
+                eps_end = 0 
+
+             
+
+    mean_episode_length = np.mean(episode_length_tracker)
+    mean_reward = np.mean(reward_tracker)
+
+    with open('evaluation_results.txt','w') as f:
+        f.write(f'evaluation results \n')
+        f.write(f'mean_episode_length={mean_episode_length} \n')
+        f.write(f'mean_reward={mean_reward} \n')
+
+    return 
+            
+
+
+def train_process_env(env):
+    env = ResizeTo84by84(env)
+    env = ClipReward(env)
+    env = FrameskippingAndMax(env,skip=4)
+    env = FrameStacking(env,4)
+    env = NoOpReset(env)
+
+    return env
+
+def graph_episode_length(data,eval=False):
     plt.plot(data)
-    plt.save('timesteps_vs_reward.png') 
+    plt.xlabel('Episodes')
+    plt.ylabel('Episode Length(in timesteps)')
+
+    header = None
+    if eval: 
+        header = 'Evaluation'
+    else: 
+        header = 'Training'
+
+    
+    plt.savefig(f'{header}--ep_num-vs-episode_length.png')
+
+def graph_reward(data,eval=False):
+    plt.plot(data)
+    plt.xlabel('timesteps')
+    plt.ylabel('Reward')
+    
+    header = None
+    if eval: 
+        header = 'Evaluation'
+    else: 
+        header = 'Training'
+
+    plt.savefig(f'{header}--timesteps_vs_reward.png') 
 
 
 # input env is already processed
@@ -112,8 +198,13 @@ def train(env):
 
     # implement the first bit first , then write remainder
 
-    
+    if torch.cuda.is_available():
+        print('cuda available=',torch.cuda.is_available())
+        device = torch.device('cuda:0')
+    else: 
+        device = torch.device('cpu')
 
+    print(device)
 
     def annealed_epsilon(step):
         return initial_exploration + (final_exploration - initial_exploration) * min(1, step / final_exploration_frame)
@@ -126,12 +217,15 @@ def train(env):
         if probability < epsilon:
             return env.action_space.sample()
         else:
+
             state = torch.tensor(state)
-            action = torch.argmax(policy_q_network(state))
+            state.to(device)
+            with torch.no_grad():
+                action = torch.argmax(policy_q_network(state))
             return action
 
 
-    def compute_targets(prev_state, action, reward, next_state, done):
+    def compute_targets(prev_state, action, reward, next_state, done, e):
 
         number_of_samples = prev_state.shape[0]
         target_values = []
@@ -148,6 +242,7 @@ def train(env):
                 target_values.append(current_reward)
             else:
                 current_next_state = torch.unsqueeze(current_next_state,0)
+                current_next_state = current_next_state.to(device)
                 target_val = (current_reward + discount_factor_gamma * torch.max(target_q_network(current_next_state))).item()
                 target_values.append(target_val)
 
@@ -158,17 +253,14 @@ def train(env):
     # initialize replay memory to capacity N
     replay_mem = ReplayMemory(replay_memory_size)
 
-    print('Initialized replay mem ')
+    print('Initialized replay mem')
 
     print("Storing data in Replay Memory")
 
-
-    
     obs  = env.reset()
     prev_state = obs
 
-    #for i in range(replay_start_size):
-    for i in range(64):
+    for i in range(replay_start_size):
 
         action = env.action_space.sample()
         obs, reward, done, info = env.step(action)
@@ -199,23 +291,29 @@ def train(env):
 
     # initialize action-value function Q with random weights (theta)
     policy_q_network = DQN_Agent(env.action_space.n)
+    policy_q_network.to(device)
 
     # intialize target action-value function Q^ with weights equal to NN above
     target_q_network = DQN_Agent(env.action_space.n)
     target_q_network.load_state_dict(policy_q_network.state_dict())
-
+    target_q_network.eval()
+    target_q_network.to(device)
+    
     # Use HuberLoss 
-    huber_loss_fn = torch.nn.HuberLoss()
+    loss_fn = torch.nn.SmoothL1Loss()
 
     optimizer = RMSprop(policy_q_network.parameters(),lr=lr,momentum=grad_momentum,eps=min_squared_gradient)
 
-    # For episode =1 , M do
-
+    
     timesteps_total = 0
 
+<<<<<<< HEAD
     for _ in range(5000): # number episode 
 
     # Here need to prime the sequence
+=======
+    for ep_num in range(5000):
+>>>>>>> 323f0ed70ee49a56b1c74478472105305714ba6d
         done = False 
         obs = env.reset()
         timestep_start = timesteps_total
@@ -239,17 +337,35 @@ def train(env):
 
             # sample data from experience replay 
             sample_prev_state, sample_action, sample_reward, sample_next_state, sample_done = convert_to_tensor(replay_mem.sample(minibatch_size))
+<<<<<<< HEAD
 
             Yj = compute_targets(sample_prev_state, sample_action, sample_reward, sample_next_state, sample_done)
+=======
+>>>>>>> 323f0ed70ee49a56b1c74478472105305714ba6d
 
+            
+            # place data on GPU
+            sample_prev_state = sample_prev_state.to(device)
+            sample_action = sample_action.to(device)
+            
+            
+            Yj = compute_targets(sample_prev_state, sample_action, sample_reward, sample_next_state, sample_done, device)
+            Yj = Yj.to(device)
 
-            policy_predictions = torch.max(policy_q_network(prev_state),1).values
-            loss = huber_loss_fn(Yj,policy_predictions)
+            # converting to a 32x1 tensor s.t. gather operation works as intended 
+            sample_action_index = sample_action.unsqueeze(0)
+            
+            policy_predictions = (policy_q_network(sample_prev_state).gather(1,sample_action_index)).squeeze()
+            
+            loss = loss_fn(Yj,policy_predictions)
 
 
             optimizer.zero_grad()
             loss.backward()
             # Need to clip gradients between -1,1 
+
+            for param in policy_q_network.parameters():
+                param.grad.data.clamp_(-1,1)
             
             optimizer.step()
             
@@ -260,7 +376,8 @@ def train(env):
             if timesteps_total % C == 0:
                 target_q_network.load_state_dict(policy_q_network.state_dict()) 
 
-        episode_length_tracker.append(timestep_end - timestep_start)    
+        episode_length_tracker.append(timestep_end - timestep_start)
+        print(f'completed train episode {ep_num}')    
 
 
         # DO A EVALUATION EPISODE - 10 eval episodes , take average of return , episode length  
@@ -270,15 +387,10 @@ def train(env):
     # save policy network and 
     torch.save(policy_q_network,'policy_q_network.pt')
 
-    graph_reward(reward_tracker)
-    graph_episode_length(episode_length_tracker)
+    graph_reward(reward_tracker,eval=False)
+    graph_episode_length(episode_length_tracker,eval=False)
 
-    return 
-
-    #return policy_q_network, target_q_network
-
-
-
+    return policy_q_network
 
 
 
@@ -289,9 +401,12 @@ def main():
     env = gym.make('Pong-v0',obs_type='grayscale')
     env = env.unwrapped
     print(env)
-    env = process_env(env)
+    train_env = train_process_env(env)
     #print(env)
-    train(env)
+    agent_network = train(train_env)
+    eval_env = evaluation_process_env(env)
+
+    evaluate(eval_env, agent_network)
 
 
 
