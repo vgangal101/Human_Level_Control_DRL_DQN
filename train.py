@@ -1,13 +1,27 @@
 import argparse
 from collections import deque
 import random
-from preprocessing_wrappers import ClipReward, FrameskippingAndMax, FrameStacking, NoOpReset, ResizeTo84by84
+from preprocessing_wrappers2 import make_atari, wrap_deepmind
 import gym
 import torch
 import numpy as np
 from model_arch import DQN_Agent
 from torch.optim import RMSprop
 import matplotlib.pyplot as plt
+
+
+# test on all of these !!
+env_mapper = {'Pong':'PongNoFrameskip-v4',
+               'Breakout': 'BreakoutNoFrameskip-v4',
+               'Atlantis':'AtlantisNoFrameskip-v4'}
+
+
+
+def get_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--env_name',type=str,default='Pong')
+    args = parser.parse_args()
+    return args
 
 
 class ReplayMemory:
@@ -42,10 +56,10 @@ def convert_to_tensor(sample):
         next_state = s[3]
         done = s[4]
         
-        prev_state_tensor.append(prev_state)
+        prev_state_tensor.append(np.array(prev_state).reshape(4,84,84))
         action_t.append(action)
         reward_t.append(reward)
-        next_state_tensor.append(next_state)
+        next_state_tensor.append(np.array(next_state).reshape(4,84,84))
         done_t.append(done)
 
     prev_state_tensor = torch.tensor(np.array(prev_state_tensor),dtype=torch.float32)
@@ -53,24 +67,24 @@ def convert_to_tensor(sample):
     reward_t = torch.tensor(reward_t, dtype=torch.float32)
     next_state_tensor = torch.tensor(np.array(next_state_tensor),dtype=torch.float32)
     done_t = torch.tensor(done_t,dtype=torch.int64)
+    return normalize_image_tensor(prev_state_tensor), action_t, reward_t, normalize_image_tensor(next_state_tensor), done_t 
 
 
-
-    return prev_state_tensor, action_t, reward_t, next_state_tensor, done_t 
-
-
-def evaluation_process_env(env):
-    env = ResizeTo84by84(env)
-    env = ClipReward(env)
-    env = FrameskippingAndMax(env,skip=4)
-    env = FrameStacking(env,4)
-    env = NoOpReset(env)
-
+def make_env(env):
+    env = make_atari(env)
+    env = wrap_deepmind(env,frame_stack=True,scale=False)
     return env
+
+
+def normalize_image_tensor(img_tensor):
+    return img_tensor / 255.0
+
 
 
 def evaluate(env, policy_q_network):
     
+    print('Doing evaluation')
+
     if torch.cuda.is_available():
         device = torch.device('cuda:0')
     else: 
@@ -83,7 +97,9 @@ def evaluate(env, policy_q_network):
             return env.action_space.sample()
         else:
             state = torch.tensor(state)
-            state.to(device)
+            state = state.reshape(1,4,84,84)
+            state = state.to(device)
+            
             with torch.no_grad():
                 action = torch.argmax(policy_q_network(state))
             return action
@@ -124,18 +140,10 @@ def evaluate(env, policy_q_network):
         f.write(f'mean_episode_length={mean_episode_length} \n')
         f.write(f'mean_reward={mean_reward} \n')
 
+    print('Evaluation finished')
+
     return 
             
-
-
-def train_process_env(env):
-    env = ResizeTo84by84(env)
-    env = ClipReward(env)
-    env = FrameskippingAndMax(env,skip=4)
-    env = FrameStacking(env,4)
-    env = NoOpReset(env)
-
-    return env
 
 def graph_episode_length(data,eval=False):
     plt.plot(data)
@@ -204,7 +212,7 @@ def train(env):
     else: 
         device = torch.device('cpu')
 
-    print(device)
+    #print(device)
 
     def annealed_epsilon(step):
         return initial_exploration + (final_exploration - initial_exploration) * min(1, step / final_exploration_frame)
@@ -218,8 +226,9 @@ def train(env):
             return env.action_space.sample()
         else:
 
-            state = torch.tensor(state)
-            state.to(device)
+            state = torch.tensor(state,dtype=torch.float32)
+            state = state.reshape((1,4,84,84))
+            state = state.to(device)
             with torch.no_grad():
                 action = torch.argmax(policy_q_network(state))
             return action
@@ -260,6 +269,7 @@ def train(env):
     obs  = env.reset()
     prev_state = obs
 
+    # loop value needs to be set to replay_start_size
     for i in range(replay_start_size):
 
         action = env.action_space.sample()
@@ -310,9 +320,8 @@ def train(env):
     for ep_num in range(5000):
         done = False 
         obs = env.reset()
-        timestep_start = timesteps_total
-        timestep_end = timesteps_total
-        while not done:  # for 1 episode 
+        timestep_end = 0
+        while not done: 
             current_epsilon = annealed_epsilon(timesteps_total)
 
             # With probability epsilon select a random action At,
@@ -328,6 +337,7 @@ def train(env):
 
             replay_mem.store(experience)
 
+            
 
             # sample data from experience replay 
             sample_prev_state, sample_action, sample_reward, sample_next_state, sample_done = convert_to_tensor(replay_mem.sample(minibatch_size))
@@ -337,7 +347,7 @@ def train(env):
             sample_prev_state = sample_prev_state.to(device)
             sample_action = sample_action.to(device)
             
-            
+            # probably needs fixing 
             Yj = compute_targets(sample_prev_state, sample_action, sample_reward, sample_next_state, sample_done, device)
             Yj = Yj.to(device)
 
@@ -358,15 +368,19 @@ def train(env):
             
             optimizer.step()
             
-            # very last step before loop exit , 
+            # switch the obs , the new obs becomes the current observation
+            obs = next_obs
+
+            # very last step before loop exit ,
             timesteps_total += 1
             timestep_end += 1 
         
             if timesteps_total % C == 0:
                 target_q_network.load_state_dict(policy_q_network.state_dict()) 
 
-        episode_length_tracker.append(timestep_end - timestep_start)
-        print(f'completed train episode {ep_num}')    
+        episode_length_tracker.append(timestep_end)
+        print(f'completed train episode {ep_num}')
+        print(f'timesteps for episode={timestep_end}')    
 
 
         # DO A EVALUATION EPISODE - 10 eval episodes , take average of return , episode length  
@@ -384,17 +398,10 @@ def train(env):
 
 
 def main():
-
-    #args = get_args()
-
-    env = gym.make('PongNoFrameskip-v4',obs_type='grayscale')
-    env = env.unwrapped
-    print(env)
-    train_env = train_process_env(env)
-    #print(env)
+    env = env_mapper['Pong']
+    train_env = make_env(env)
     agent_network = train(train_env)
-    eval_env = evaluation_process_env(env)
-
+    eval_env = make_env(env)
     evaluate(eval_env, agent_network)
 
 
