@@ -284,7 +284,7 @@ def train(env):
         else:
             prev_state = next_state
 
-        if i % 10000: 
+        if i % 10000 == 0: 
             print('completed replay storage iter=',i)
 
     #prev_state, action, reward, next_state, done = convert_to_tensor(replay_mem.sample(32))
