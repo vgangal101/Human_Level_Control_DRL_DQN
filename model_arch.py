@@ -6,7 +6,7 @@ import torch
 import torch.nn as nn
 
 
-class DQN_Agent(nn.Module):
+class DQN_CNN(nn.Module):
     def __init__(self,num_actions):
         # input to the network is 84 x 84 x 4
         super().__init__()
