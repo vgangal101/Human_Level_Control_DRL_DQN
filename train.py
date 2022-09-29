@@ -3,6 +3,7 @@ from model_arch import DQN_CNN
 import argparse
 import torch 
 import numpy as np 
+from train_utils import LinearSchedule
 
 
 # Hyperparameters from paper 
@@ -35,7 +36,7 @@ def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--env_name',default='PongNoFrameskip-v4')
     args = parser.parse_args()
-    
+    return args
 
 
 
@@ -48,12 +49,16 @@ def train(env_name):
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    behavior_net = DQN_CNN(env.action_space.n)
+    policy_net = DQN_CNN(env.action_space.n)
     target_net = DQN_CNN(env.action_space.n)
-    target_net.load_state_dict(behavior_net.state_dict())
+    target_net.load_state_dict(policy_net.state_dict())
     target_net.eval()
 
-    optimizer = torch.opti
+    # remove this once implem is good
+    # got this setup from : https://github.com/transedward/pytorch-dqn/blob/1ffda6f3724b3bb37c3195b09b651b1682d4d4fd/ram.py#L16
+    optimizer = torch.optim.RMSprop(policy_net.parameters(),alpha=0.95,eps=0.01)
+
+    
 
 
 
