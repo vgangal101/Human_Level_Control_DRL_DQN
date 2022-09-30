@@ -158,34 +158,9 @@ def train(env_name):
     torch.save(policy_net,policy_net_file_save)
     torch.save(target_net,target_net_file_save)
 
-
     # graph the training curves 
     graph_training_rewards(reward_tracker)
     graph_training_ep_len(ep_len_tracker)
-    
-
-
-
-
-
-
-
-
-
-
-
-
-
-            
-
-
-
-
-
-
-
-
-    
 
 
 
