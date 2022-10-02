@@ -1,4 +1,4 @@
-from collections import namedtuple, deque, 
+from collections import namedtuple, deque 
 import random
 
 class LinearSchedule():

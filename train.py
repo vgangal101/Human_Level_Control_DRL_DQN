@@ -1,4 +1,4 @@
-from math import gamma
+#from math import gamma
 from preprocessing_wrappers import make_atari, wrap_deepmind
 from model_arch import DQN_CNN
 import argparse
@@ -18,7 +18,7 @@ agent_history_length = 4
 
 C = 10000 # target_network_update_frequency
 
-discount_factor_gamma = 0.99 # discount factor used in the Q-learning update
+gamma = 0.99 # discount factor used in the Q-learning update
 action_repeat = 4
 update_frequency = 4
 lr = 0.00025 # learning rate used by RMSProp
@@ -45,16 +45,14 @@ def get_args():
 
 def main():
     args = get_args()
-    train(args.env)
-
-
+    train(args.env_name)
 
 
 def convert_obs(obs): 
     state = np.array(obs)
     state = state.transpose((2,0,1))
-    state = torch.from_numpy()
-    return state
+    state = torch.from_numpy(state)
+    return state.unsqueeze(0)
 
 
 def train(env_name):
@@ -91,9 +89,10 @@ def train(env_name):
             current_epsilon = epsilon_schedule.get_epsilon(timesteps_count)
             if sample > current_epsilon:
                 with torch.no_grad():
+                    print('state shape=',state.shape) 
                     action = policy_net(state).max(1)[1].view(1,1)
             else: 
-                action = torch.tensor([random.randrange(env.action_space.n)], device=device, type=torch.long)
+                action = torch.tensor([random.randrange(env.action_space.n)], device=device, dtype=torch.long)
 
             next_state, reward, done, info = env.step(action.item())
             timesteps_count += 1 
@@ -103,7 +102,7 @@ def train(env_name):
             else: 
                 next_state = None  
 
-            replay_mem.push(Transition(state,action.item(),reward,next_state))
+            replay_mem.push(state,action.item(),reward,next_state)
 
             if  len(replay_mem) > replay_start_size: 
                 # do learning 
@@ -148,13 +147,14 @@ def train(env_name):
             if done:
                 reward_tracker.append(sum(rewards))
                 ep_len_tracker.append(len(rewards))
-                print('Total steps: {} \t Episode: {}/{} \t Total reward: {}'.format(timesteps_count, episode, reward_tracker[-1])) 
+                print(f'Total steps: {0} \t Episode: {1} \t Total reward: {2}'.format(timesteps_count, episode, reward_tracker[-1])) 
                 break
             else: 
                 rewards.append(reward) 
+    
     # save the model 
-    policy_net_file_save = f'{}_DQN_policy_net.pth'.format(env_name)
-    target_net_file_save = f'{}_DQN_target_net.pth'.format(env_name)
+    policy_net_file_save = f'{env_name}_DQN_policy_net.pth'
+    target_net_file_save = f'{env_name}_DQN_target_net.pth'
 
     torch.save(policy_net,policy_net_file_save)
     torch.save(target_net,target_net_file_save)
