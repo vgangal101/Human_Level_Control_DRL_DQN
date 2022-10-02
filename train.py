@@ -89,7 +89,6 @@ def train(env_name):
             current_epsilon = epsilon_schedule.get_epsilon(timesteps_count)
             if sample > current_epsilon:
                 with torch.no_grad():
-                    print('state shape=',state.shape) 
                     action = policy_net(state).max(1)[1].view(1,1)
             else: 
                 action = torch.tensor([random.randrange(env.action_space.n)], device=device, dtype=torch.long)
