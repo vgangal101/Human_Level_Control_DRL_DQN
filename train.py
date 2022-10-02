@@ -60,8 +60,8 @@ def train(env_name):
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    policy_net = DQN_CNN(env.action_space.n)
-    target_net = DQN_CNN(env.action_space.n)
+    policy_net = DQN_CNN(env.action_space.n).to(device)
+    target_net = DQN_CNN(env.action_space.n).to(device)
     target_net.load_state_dict(policy_net.state_dict())
     target_net.eval()
 
@@ -78,18 +78,18 @@ def train(env_name):
     reward_tracker = []
     ep_len_tracker = []
 
-    #num_episodes = 10000
-    num_episodes = 20
+    num_episodes = 30000
+    #num_episodes = 20
     for episode in range(num_episodes):
         state = env.reset()
         state = convert_obs(state)
-        rewards = []
+        episode_reward = []
         for t in range(10000):
             sample = random.random()
             current_epsilon = epsilon_schedule.get_epsilon(timesteps_count)
             if sample > current_epsilon:
                 with torch.no_grad():
-                    action = policy_net(state).max(1)[1].view(1,1)
+                    action = policy_net(state.to(device)).max(1)[1].view(1,1)
             else: 
                 action = torch.tensor([random.randrange(env.action_space.n)], device=device, dtype=torch.long)
 
@@ -101,7 +101,7 @@ def train(env_name):
             else: 
                 next_state = None  
 
-            replay_mem.push(state,action.item(),reward,next_state)
+            replay_mem.push(state,action.item(),next_state,reward)
 
             if  len(replay_mem) > replay_start_size: 
                 # do learning 
@@ -117,7 +117,7 @@ def train(env_name):
     
                 non_final_next_states = torch.cat([s for s in batch.next_state if s is not None]).to('cuda')
                 
-                state_batch = torch.cat(batch.state).to('cuda')
+                state_batch = torch.cat(batch.state).to(device)
                 action_batch = torch.cat(actions)
                 reward_batch = torch.cat(rewards)
                 
@@ -144,12 +144,12 @@ def train(env_name):
                     target_net.load_state_dict(policy_net.state_dict())
             
             if done:
-                reward_tracker.append(sum(rewards))
-                ep_len_tracker.append(len(rewards))
+                reward_tracker.append(sum(episode_reward))
+                ep_len_tracker.append(len(episode_reward))
                 print(f'Total steps: {timesteps_count} \t Episode: {episode} \t Total reward: {reward_tracker[-1]}') 
                 break
             else: 
-                rewards.append(reward) 
+                episode_reward.append(reward) 
     
     # save the model 
     policy_net_file_save = f'{env_name}_DQN_policy_net.pth'
