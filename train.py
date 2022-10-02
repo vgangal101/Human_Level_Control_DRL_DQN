@@ -146,7 +146,7 @@ def train(env_name):
             if done:
                 reward_tracker.append(sum(rewards))
                 ep_len_tracker.append(len(rewards))
-                print(f'Total steps: {0} \t Episode: {1} \t Total reward: {2}'.format(timesteps_count, episode, reward_tracker[-1])) 
+                print(f'Total steps: {timesteps_count} \t Episode: {episode} \t Total reward: {reward_tracker[-1]}') 
                 break
             else: 
                 rewards.append(reward) 
