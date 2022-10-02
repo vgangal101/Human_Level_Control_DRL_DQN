@@ -80,7 +80,8 @@ def train(env_name):
     reward_tracker = []
     ep_len_tracker = []
 
-    num_episodes = 10000
+    #num_episodes = 10000
+    num_episodes = 20
     for episode in range(num_episodes):
         state = env.reset()
         state = convert_obs(state)
@@ -147,7 +148,7 @@ def train(env_name):
             if done:
                 reward_tracker.append(sum(rewards))
                 ep_len_tracker.append(len(rewards))
-                print('Total steps: {} \t Episode: {}/{} \t Total reward: {}'.format(timesteps_count, episode, reward_tracker[-1]) 
+                print('Total steps: {} \t Episode: {}/{} \t Total reward: {}'.format(timesteps_count, episode, reward_tracker[-1])) 
                 break
             else: 
                 rewards.append(reward) 
