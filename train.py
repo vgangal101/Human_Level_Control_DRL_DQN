@@ -12,7 +12,9 @@ from graphing_utils import graph_training_ep_len, graph_training_rewards
 # Hyperparameters from paper 
 minibatch_size = 32
 
-replay_memory_size = 1000000
+#replay_memory_size = 1000000
+# do not use replay_memory_size of 1 mil frames 
+replay_memory_size = 100000
 
 agent_history_length = 4
 
@@ -78,7 +80,7 @@ def train(env_name):
     reward_tracker = []
     ep_len_tracker = []
 
-    num_episodes = 30000
+    num_episodes = 2000
     #num_episodes = 20
     for episode in range(num_episodes):
         state = env.reset()
@@ -136,8 +138,8 @@ def train(env_name):
 
                 optimizer.zero_grad()
                 loss.backward()
-                for param in policy_net.parameters():
-                    param.grad.data.clamp_(-1,1)
+                #for param in policy_net.parameters():
+                #    param.grad.data.clamp_(-1,1)
                 optimizer.step()
 
                 if timesteps_count % C == 0:
