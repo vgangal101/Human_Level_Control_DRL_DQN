@@ -80,7 +80,8 @@ def train(env_name):
     reward_tracker = []
     ep_len_tracker = []
 
-    num_episodes = 2000
+    #num_episodes = 2000
+    num_episodes = 2500
     #num_episodes = 20
     for episode in range(num_episodes):
         state = env.reset()
@@ -105,7 +106,7 @@ def train(env_name):
 
             replay_mem.push(state,action.item(),next_state,reward)
 
-            if  len(replay_mem) > replay_start_size: 
+            if  timesteps_count % update_frequency == 0 and len(replay_mem) > replay_start_size: 
                 # do learning 
                 transitions = replay_mem.sample(minibatch_size)
                 batch = Transition(*zip(*transitions))
