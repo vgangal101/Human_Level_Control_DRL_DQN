@@ -6,6 +6,7 @@ import torch
 import numpy as np 
 import random
 from train_utils import LinearSchedule, ReplayMemory, Transition
+from 
 import torch.nn.functional as F
 from graphing_utils import graph_training_ep_len, graph_training_rewards
 
@@ -81,7 +82,7 @@ def train(env_name):
     ep_len_tracker = []
 
     #num_episodes = 2000
-    num_episodes = 2500
+    num_episodes = 5000
     #num_episodes = 20
     for episode in range(num_episodes):
         state = env.reset()
