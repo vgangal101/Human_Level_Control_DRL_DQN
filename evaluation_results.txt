@@ -1,3 +1,0 @@
-evaluation results 
-mean_episode_length=798.9333333333333 
-mean_reward=-20.866666666666667 
