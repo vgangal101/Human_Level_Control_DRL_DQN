@@ -33,7 +33,7 @@ class LinearSchedule():
 
 
 
-class ReplayMemoryData():
+class ReplayMemory():
     def __init__(self,capacity,state_dims):
         self.capacity = capacity
         self.state = np.empty((capacity,*state_dims))
@@ -66,7 +66,6 @@ class ReplayMemoryData():
 
         if self.is_full: 
             # can sample from anywhere 
-            # catch condition where if you are at end of data , wrap around to retreive data} 
             all_avail_indices = list(range(0,self.capacity))
         else:
             # get contigous index positions
@@ -79,5 +78,5 @@ class ReplayMemoryData():
         next_state_data = torch.from_numpy(self.next_state[[select_indices]])
         done_data = torch.from_numpy(self.done[[select_indices]])
 
-        return state_data, action_data, reward_data, next_state_data, done_data 
+        return state_data.squeeze(), action_data.squeeze(), reward_data.squeeze(), next_state_data.squeeze(), done_data.squeeze() 
          
