@@ -8,7 +8,7 @@ import numpy as np
 import random
 from train_utils import LinearSchedule, ReplayMemoryData
 import torch.nn.functional as F
-from graphing_utils import graph_training_ep_len, graph_training_rewards
+from graphing_utils import graph_ep_len, graph_q_vals, graph_rewards
 import gym
 
 
@@ -129,8 +129,8 @@ def train(cfg):
     train_ep_len_tracker = []
     train_q_val_tracker = []
 
-    eval_ep_reward_tracker = []
     eval_reward_tracker = []
+    eval_ep_len_tracker = []
     
 
     #num_episodes = 2000
@@ -194,7 +194,7 @@ def train(cfg):
 
                 optimizer.zero_grad()
                 loss.backward()
-                q_vals.append(loss.item)
+                train_q_val_tracker.append(loss.item)
                 # LOOK AT STABLE BASELINES 3 , DO THE CLIPPING NEEDED 
                 #for param in policy_net.parameters():
                 #    param.grad.data.clamp_(-1,1)
@@ -206,7 +206,7 @@ def train(cfg):
             if done:
                 train_reward_tracker.append(sum(episode_reward))
                 train_ep_len_tracker.append(len(episode_reward))
-                print(f'Total steps: {timesteps_count} \t Episode: {episode} \t Total reward: {reward_tracker[-1]}') 
+                print(f'Training - Total steps: {timesteps_count} \t Episode: {episode} \t Total reward: {train_reward_tracker[-1]}') 
                 break
             else: 
                 episode_reward.append(reward) 
@@ -219,8 +219,12 @@ def train(cfg):
     torch.save(target_net,target_net_file_save)
 
     # graph the training curves 
-    graph_training_rewards(reward_tracker)
-    graph_training_ep_len(ep_len_tracker)
+    graph_rewards(train_reward_tracker,phase='train')
+    graph_ep_len(train_ep_len_tracker,phase='train')
+    graph_q_vals(train_q_val_tracker,phase='train')
+    
+    graph_rewards(eval_reward_tracker,phase='eval')
+    graph_ep_len(eval_ep_len_tracker,phase='eval')
 
 
 
