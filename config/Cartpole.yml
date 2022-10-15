@@ -1,0 +1,17 @@
+env_name: Cartpole-v0
+network_arch: BasicMLP
+minibatch_size: 32 # can consider changing this 
+replay_memory_size: 10000
+agent_history_length: 4 
+target_network_update_frequency: 10000
+discount_factor: 0.99
+action_repeat: 4 
+update_frequency: 4 
+learning_rate: 0.00025 
+gradient_momentum_alpha: 0.95 
+min_squared_gradient: 0.01 
+initial_exploration: 1 
+final_exploration: 0.1 
+final_exploration_frame: 10000
+replay_start_size: 50000
+no_op_max: 30 

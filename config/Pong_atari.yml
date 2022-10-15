@@ -1,0 +1,49 @@
+
+
+# parser.add_argument('--network_arch',type=str) # can be either BasicMLP or NatureCNN
+# parser.add_argument('--minibatch_size',type=int)
+# parser.add_argument('--replay_memory_size',type=int)
+# parser.add_argument('--agent_history_length',type=int)
+# parser.add_argument('--target_network_update_frequency',type=int)
+# parser.add_argument('--discount_factor',type=float)
+# parser.add_argument('--action_repeat',type=int)
+# parser.add_argument('--update_frequency',type=int)
+# parser.add_argument('--learning_rate',type=float)
+# parser.add_argument('--gradient_momentum_alpha',type=float)
+# parser.add_argument('--min_squared_gradient',type=float)
+# parser.add_argument('--initial_exploration',type=float)
+# parser.add_argument('--final_exploration',type=float)
+# parser.add_argument('--final_exploration_frame',type=float)
+# parser.add_argument('--replay_start_size',type=int)
+# parser.add_argument('--no_op_max',type=int)
+
+
+env_name: PongNoFrameskip-v4
+network_arch: NatureCNN
+minibatch_size: 32 
+replay_memory_size: 1000000
+agent_history_length: 4 
+target_network_update_frequency: 10000
+discount_factor: 0.99
+action_repeat: 4 
+update_frequency: 4 
+learning_rate: 0.00025 
+gradient_momentum_alpha: 0.95 
+min_squared_gradient: 0.01 
+initial_exploration: 1 
+final_exploration: 0.1 
+final_exploration_frame: 1 
+replay_start_size: 50000
+no_op_max: 30 
+
+
+
+
+
+
+
+
+
+
+
+
