@@ -149,7 +149,7 @@ def train(cfg):
     for episode in range(num_episodes):
         state = env.reset()
         episode_reward = []
-        for t in range(10000):
+        for t in range(10000): # should the max time, per episode be set to 108,000 ? 
             sample = random.random()
             current_epsilon = epsilon_schedule.get_epsilon(timesteps_count)
             tb_writer.add_scalar('Epsilon/train', current_epsilon)
