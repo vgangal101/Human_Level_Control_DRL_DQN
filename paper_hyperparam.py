@@ -15,8 +15,8 @@ action_repeat = 4
 update_frequency = 4
 lr = 0.00025 # learning rate used by RMSProp
 grad_momentum = 0.95 # gradient momentum used by RMSProp
-squared_gradient_momentum = 0.95 # squared
-min_squared_gradient = 0.01 # constant to squared gradient in denom of RMSProp Update
+squared_gradient_momentum = 0.95 # squared [ alpha]
+min_squared_gradient = 0.01 # constant to squared gradient in denom of RMSProp Update [ eps]
 
 
 initial_exploration = 1 # inital vaue of epsilon in epsilon greedy exploration
