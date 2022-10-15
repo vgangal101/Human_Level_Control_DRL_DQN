@@ -1,46 +1,28 @@
 #from math import gamma
-from preprocessing_wrappers import make_atari, wrap_deepmind
-from model_arch import DQN_CNN
+from preprocessing_wrappers import make_atari, wrap_deepmind, ImageToPyTorch
+from model_arch import NatureCNN, BasicMLP
 import argparse
 import torch 
 import numpy as np 
 import random
-from train_utils import LinearSchedule, ReplayMemory, Transition
-from 
+from train_utils import LinearSchedule, ReplayMemoryData
 import torch.nn.functional as F
 from graphing_utils import graph_training_ep_len, graph_training_rewards
+import gym
+import paper_hyperparam
 
-# Hyperparameters from paper 
-minibatch_size = 32
-
-#replay_memory_size = 1000000
-# do not use replay_memory_size of 1 mil frames 
-replay_memory_size = 100000
-
-agent_history_length = 4
-
-C = 10000 # target_network_update_frequency
-
-gamma = 0.99 # discount factor used in the Q-learning update
-action_repeat = 4
-update_frequency = 4
-lr = 0.00025 # learning rate used by RMSProp
-grad_momentum = 0.95 # gradient momentum used by RMSProp
-squared_gradient_momentum = 0.95 # squared
-min_squared_gradient = 0.01 # constant to squared gradient in denom of RMSProp Update
-
-
-initial_exploration = 1 # inital vaue of epsilon in epsilon greedy exploration
-final_exploration = 0.1 # final value of epsilon in epsilon-greedy exploration
-final_exploration_frame = 1000000
-
-replay_start_size = 50000 # uniform random policy is run for this num of frames before learning starts & resulting experience is used to populate replay ReplayMemory
-
-no_op_max = 30 # max number of 'do nothing' actions to be performed  by the agent at the start of an episode
 
 def get_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--env_name',default='PongNoFrameskip-v4')
+    parser.add_argument('--env_name',type=str,default='PongNoFrameskip-v4')
+    parser.add_argument('--network_arch',type=str,default=None) # can be either BasicMLP or NatureCNN
+    parser.add_argument('--replay_memory_size',type=int,default=None)
+    parser.add_argument('--final_exploration_frame',type=int,default=None)
+    parser.add_argument('--eps_start',type=int,default=None)
+    parser.add_argument('--eps_end',type=float, default=None)
+    parser.add_argument('--replay_mem_start',type=int,default=None)
+    
+    #parser.add_argument('--param_config_paper',default=True)
     args = parser.parse_args()
     return args
 
@@ -48,45 +30,61 @@ def get_args():
 
 def main():
     args = get_args()
-    train(args.env_name)
+    train(args,args.env_name)
 
 
-def convert_obs(obs): 
-    state = np.array(obs)
-    state = state.transpose((2,0,1))
-    state = torch.from_numpy(state)
-    return state.unsqueeze(0)
+# def convert_obs(obs): 
+#     state = np.array(obs)
+#     state = state.transpose((2,0,1))
+#     state = torch.from_numpy(state)
+#     return state.unsqueeze(0)
 
 
-def train(env_name):
-    env = wrap_deepmind(make_atari(env_name))
+def train(args,env_name):
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    policy_net = DQN_CNN(env.action_space.n).to(device)
-    target_net = DQN_CNN(env.action_space.n).to(device)
+    if 'Cartpole' in args.env_name:
+        env = gym.make(args.env_name)
+        policy_net = BasicMLP(env.observation_space.shape[0].n,env.action_space.n).to(device)
+        target_net = BasicMLP(env.observation_space.shape[0].n,env.action_space.n).to(device)
+        target_net.load_state_dict(policy_net.state_dict())
+        target_net.eval()
+        
+    else: # atari setup
+        env = wrap_deepmind(make_atari(args.env_name))
+        state_dim = (4,84,84)
+        policy_net = NatureCNN(env.action_space.n).to(device)
+        target_net = NatureCNN(env.action_space.n).to(device)
+        
+    state_dim = env.observation_space.shape
     target_net.load_state_dict(policy_net.state_dict())
     target_net.eval()
 
+
     # remove this once implem is good
     # got this setup from : https://github.com/transedward/pytorch-dqn/blob/1ffda6f3724b3bb37c3195b09b651b1682d4d4fd/ram.py#L16
-    optimizer = torch.optim.RMSprop(policy_net.parameters(),alpha=0.95,eps=0.01)
+    # customize choice of lr, 
+    optimizer = torch.optim.RMSprop(policy_net.parameters(),lr=paper_hyperparam.lr,alpha=paper_hyperparam.squared_gradient_momentum,eps=paper_hyperparam.min_squared_gradient)
 
     # create replay buffer 
-    replay_mem = ReplayMemory(replay_memory_size)
+    replay_mem = ReplayMemoryData(args.replay_memory_size,state_dim)
 
-    epsilon_schedule = LinearSchedule(final_exploration_frame,initial_exploration,final_exploration)
+    epsilon_schedule = LinearSchedule(args.final_exploration_frame,args.eps_start,args.eps_ends) # tested is ok 
     timesteps_count = 0
 
     reward_tracker = []
     ep_len_tracker = []
+    q_val_tracker = []
+
+    # fill Replay memory to start size 
+
 
     #num_episodes = 2000
     num_episodes = 5000
     #num_episodes = 20
     for episode in range(num_episodes):
         state = env.reset()
-        state = convert_obs(state)
         episode_reward = []
         for t in range(10000):
             sample = random.random()
@@ -101,9 +99,9 @@ def train(env_name):
             timesteps_count += 1 
 
             if not done: 
-                next_state = convert_obs(next_state)
+                state = next_state
             else: 
-                next_state = None  
+                state = None  
 
             replay_mem.push(state,action.item(),next_state,reward)
 
@@ -144,8 +142,8 @@ def train(env_name):
                 #    param.grad.data.clamp_(-1,1)
                 optimizer.step()
 
-                if timesteps_count % C == 0:
-                    target_net.load_state_dict(policy_net.state_dict())
+            if timesteps_count % C == 0:
+                target_net.load_state_dict(policy_net.state_dict())
             
             if done:
                 reward_tracker.append(sum(episode_reward))

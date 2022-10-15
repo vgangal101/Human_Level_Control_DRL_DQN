@@ -1,5 +1,4 @@
 # got preprocessing from stablebaselines 
-
 import numpy as np
 import os
 os.environ.setdefault('PATH', '')
@@ -310,3 +309,14 @@ def wrap_deepmind(env, episode_life=True, clip_rewards=True, frame_stack=True, s
     if frame_stack:
         env = FrameStack(env, 4)
     return env
+
+class ImageToPyTorch(gym.ObservationWrapper):
+    def __init__(self, env):
+        super(ImageToPyTorch, self).__init__(env)
+        old_shape = self.observation_space.shape
+        self.observation_space = gym.spaces.Box(low=0.0, high=1.0,            
+                                shape=(old_shape[-1], 
+                                old_shape[0], old_shape[1]),
+                                dtype=np.float32)
+    def observation(self, observation):
+      return np.moveaxis(observation, 2, 0)
