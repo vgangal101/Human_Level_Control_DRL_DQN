@@ -1,14 +1,17 @@
 #from math import gamma
 #from argparse import Action
 import jsonargparse
+from evaluate import evaluate_perf
 from preprocessing_wrappers import make_atari, wrap_deepmind, ImageToPyTorch
 from model_arch import NatureCNN, BasicMLP
 import torch 
 import numpy as np 
 import random
-from train_utils import LinearSchedule, ReplayMemoryData
+from train_utils import LinearSchedule, ReplayMemory
 import torch.nn.functional as F
 from graphing_utils import graph_ep_len, graph_q_vals, graph_rewards
+from torch.utils.tensorboard import SummaryWriter
+
 import gym
 
 
@@ -35,6 +38,7 @@ def get_cfg():
     parser.add_argument('--final_exploration_frame',type=float)
     parser.add_argument('--replay_start_size',type=int)
     parser.add_argument('--no_op_max',type=int)
+    parser.add_argument('--tb_log_dir',type=str)
     cfg = parser.parse_args()
     return cfg
 
@@ -84,6 +88,11 @@ def train(cfg):
     replay_start_size = cfg.replay_start_size
     no_op_max = cfg.no_op_max
 
+    # utilities configuration 
+
+    tb_log_dir = cfg.tb_log_dir
+    tb_writer = SummaryWriter(tb_log_dir)
+
     # training relevent 
     num_episodes = cfg.num_episodes
 
@@ -115,12 +124,12 @@ def train(cfg):
     optimizer = torch.optim.RMSprop(policy_net.parameters(),lr=learning_rate,alpha=gradient_momentum_alpha,eps=min_squared_gradient_eps)
 
     # create replay buffer 
-    replay_mem = ReplayMemoryData(replay_memory_size,state_dim)
+    replay_mem = ReplayMemory(replay_memory_size,state_dim)
 
     # fill replay_mem here 
     
     # fill Replay memory to start size 
-    populate_replay_memory(env,replay_memory,replay_start_size)
+    populate_replay_memory(env,replay_mem,replay_start_size)
 
     epsilon_schedule = LinearSchedule(final_exploration_frame,initial_exploration,final_exploration) # tested is ok 
     timesteps_count = 0
@@ -128,6 +137,7 @@ def train(cfg):
     train_reward_tracker = []
     train_ep_len_tracker = []
     train_q_val_tracker = []
+    train_eps_vals_tracker = []
 
     eval_reward_tracker = []
     eval_ep_len_tracker = []
@@ -142,6 +152,8 @@ def train(cfg):
         for t in range(10000):
             sample = random.random()
             current_epsilon = epsilon_schedule.get_epsilon(timesteps_count)
+            tb_writer.add_scalar('Epsilon/train', current_epsilon)
+            train_eps_vals_tracker.append(current_epsilon)
             if sample > current_epsilon:
                 with torch.no_grad():
                     action = policy_net(state.to(device)).max(1)[1].view(1,1)
@@ -156,28 +168,16 @@ def train(cfg):
             else: 
                 state = None  
 
-            replay_mem.push(state,action.item(),next_state,reward)
+            replay_mem.push(state,action.item(),reward,next_state,done)
 
             if  timesteps_count % update_frequency == 0:  #and len(replay_mem) > replay_start_size: 
                 # do learning 
                 
                 # THIS BLOCK NEEDS TO BE REDONE DEPENDANT ON REPLAY MEMORY DATA STRUCTURE
                 ##################################
-                transitions = replay_mem.sample(minibatch_size)
-                batch = Transition(*zip(*transitions))
-
-                actions = tuple((map(lambda a: torch.tensor([[a]], device=device), batch.action))) 
-                rewards = tuple((map(lambda r: torch.tensor([r], device=device), batch.reward))) 
-
-                non_final_mask = torch.tensor(
-                    tuple(map(lambda s: s is not None, batch.next_state)),
-                    device=device, dtype=torch.uint8)
-    
-                non_final_next_states = torch.cat([s for s in batch.next_state if s is not None]).to('cuda')
+                state_batch, action_batch, reward_batch, next_state_batch, done_batch = replay_mem.sample(minibatch_size)
                 
-                state_batch = torch.cat(batch.state).to(device)
-                action_batch = torch.cat(actions)
-                reward_batch = torch.cat(rewards)
+                
                 #################################
 
                 # state_action_values. what will the policy do
@@ -185,10 +185,12 @@ def train(cfg):
 
 
                 # compute next state values , i.e. the targets 
-                next_state_values = torch.zeros(minibatch_size, device=device)
-                next_state_values[non_final_mask] = target_net(non_final_next_states).max(1)[0].detach()
+                # next_state_values = torch.zeros(minibatch_size, device=device)
+                # next_state_values[non_final_mask] = target_net(non_final_next_states).max(1)[0].detach()
 
-                expected_state_action_values = (next_state_values * discount_factor) + reward_batch
+                # expected_state_action_values = (next_state_values * discount_factor) + reward_batch
+                expected_state_action_values = reward_batch + (1-done_batch) * discount_factor * target_net(next_state_batch).max(1)[0].detach()
+
 
                 loss = F.smooth_l1_loss(state_action_values, expected_state_action_values.unsqueeze(1))
 
@@ -206,11 +208,17 @@ def train(cfg):
             if done:
                 train_reward_tracker.append(sum(episode_reward))
                 train_ep_len_tracker.append(len(episode_reward))
+                tb_writer.add_scalar('Rewards/train', train_reward_tracker[-1])
+                tb_writer.add_scalar('Episode_Length/train',train_ep_len_tracker[-1])            
                 print(f'Training - Total steps: {timesteps_count} \t Episode: {episode} \t Total reward: {train_reward_tracker[-1]}') 
                 break
             else: 
                 episode_reward.append(reward) 
-        # CODE TO EVALUATE PERFROMANCE OVER 10 EPISODES , AFTER A CERTAIN AMOUNT OF EPISODES ELAPSE
+        
+        # evaluate performance
+        if episode % 10 == 0: 
+            evaluate_perf(env,policy_net,tb_writer,eval_reward_tracker,eval_ep_len_tracker)
+
     # save the model 
     policy_net_file_save = f'{cfg.env_name}_DQN_policy_net.pth'
     target_net_file_save = f'{cfg.env_name}_DQN_target_net.pth'

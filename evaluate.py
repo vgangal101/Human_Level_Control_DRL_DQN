@@ -41,4 +41,6 @@ def evaluate_perf(env,policy_net,tb_writer,eval_rew_tracker,eval_ep_len_tracker)
     eval_ep_len_tracker.append(mean_ep_len)
     
     # COLLECT TENSORBOARD STATISTICS FOR LOGGING
-     
+    tb_writer.add_scalar('Rewards/Eval', eval_rew_tracker[-1])
+    tb_writer.add_scalar("Episode_Length/Eval",eval_ep_len_tracker[-1])
+            
