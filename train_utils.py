@@ -65,10 +65,10 @@ class ReplayMemory():
         # get contigous index positions 
 
         if self.is_full: 
-            # can sample from anywhere 
+            # get any indices
             all_avail_indices = list(range(0,self.capacity))
         else:
-            # get contigous index positions
+            # get indices based on what is available 
             all_avail_indices = list(range(0,self.counter+1))
             
         select_indices = random.sample(all_avail_indices,minibatch_size)    
@@ -79,4 +79,4 @@ class ReplayMemory():
         done_data = torch.from_numpy(self.done[[select_indices]])
 
         return state_data.squeeze(), action_data.squeeze(), reward_data.squeeze(), next_state_data.squeeze(), done_data.squeeze() 
-         
+        
