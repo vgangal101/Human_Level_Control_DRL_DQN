@@ -1,5 +1,5 @@
 #from math import gamma
-from argparse import Action
+#from argparse import Action
 import jsonargparse
 from preprocessing_wrappers import make_atari, wrap_deepmind, ImageToPyTorch
 from model_arch import NatureCNN, BasicMLP
@@ -17,7 +17,7 @@ import gym
 
 def get_cfg():
     parser = jsonargparse.ArgumentParser()
-    parser.add_argument('--cfg',Action=jsonargparse.ActionConfigFile)
+    parser.add_argument('--cfg',action=jsonargparse.ActionConfigFile)
     parser.add_argument('--env_name',type=str,default='PongNoFrameskip-v4')
     parser.add_argument('--network_arch',type=str) # can be either BasicMLP or NatureCNN
     parser.add_argument('--minibatch_size',type=int)
@@ -50,6 +50,19 @@ def main():
 #     state = state.transpose((2,0,1))
 #     state = torch.from_numpy(state)
 #     return state.unsqueeze(0)
+
+def populate_replay_memory(env,replay_memory,replay_start_size):
+    state = env.reset()
+    for i in range(replay_start_size):
+        action = env.action_space.sample()
+        next_state, reward, done, info = env.step(action)
+
+        replay_memory.store(state,action,reward, next_state, done)
+
+        if done: 
+            state = env.reset()
+        else:
+            state = next_state 
 
 
 def train(cfg):
@@ -105,7 +118,9 @@ def train(cfg):
     replay_mem = ReplayMemoryData(replay_memory_size,state_dim)
 
     # fill replay_mem here 
-
+    
+    # fill Replay memory to start size 
+    populate_replay_memory(env,replay_memory,replay_start_size)
 
     epsilon_schedule = LinearSchedule(final_exploration_frame,initial_exploration,final_exploration) # tested is ok 
     timesteps_count = 0
@@ -114,7 +129,6 @@ def train(cfg):
     ep_len_tracker = []
     q_val_tracker = []
 
-    # fill Replay memory to start size 
 
 
     #num_episodes = 2000
