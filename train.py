@@ -125,11 +125,13 @@ def train(cfg):
     epsilon_schedule = LinearSchedule(final_exploration_frame,initial_exploration,final_exploration) # tested is ok 
     timesteps_count = 0
 
-    reward_tracker = []
-    ep_len_tracker = []
-    q_val_tracker = []
+    train_reward_tracker = []
+    train_ep_len_tracker = []
+    train_q_val_tracker = []
 
-
+    eval_ep_reward_tracker = []
+    eval_reward_tracker = []
+    
 
     #num_episodes = 2000
     #num_episodes = 5000
@@ -202,8 +204,8 @@ def train(cfg):
                 target_net.load_state_dict(policy_net.state_dict())
             
             if done:
-                reward_tracker.append(sum(episode_reward))
-                ep_len_tracker.append(len(episode_reward))
+                train_reward_tracker.append(sum(episode_reward))
+                train_ep_len_tracker.append(len(episode_reward))
                 print(f'Total steps: {timesteps_count} \t Episode: {episode} \t Total reward: {reward_tracker[-1]}') 
                 break
             else: 
