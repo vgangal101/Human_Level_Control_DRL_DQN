@@ -1,6 +1,7 @@
 from collections import namedtuple, deque 
 import random
 import numpy as np
+import torch 
 
 
 class LinearSchedule():
@@ -34,16 +35,49 @@ class LinearSchedule():
 
 class ReplayMemoryData():
     def __init__(self,capacity,state_dims):
+        self.capacity = capacity
         self.state = np.empty((capacity,*state_dims))
         self.action = np.empty((capacity))
         self.reward = np.empty((capacity))
         self.next_state = np.empty((capacity,*state_dims))
         self.done = np.empty((capacity))
         self.counter = 0
+        self.is_full = False 
     
-    def store():
-        pass 
+    def store(self,state,action,reward,next_state,done):
+        self.state[self.counter] = state
+        self.action[self.counter] = action
+        self.reward[self.counter] = reward
+        self.next_state[self.counter] = next_state 
+        self.done[self.counter] = done
+        
+        if self.counter + 1 > self.capacity - 1:
+            self.counter = 0 
+            self.is_full = True 
+        else: 
+            self.counter += 1 
+    
+    def sample(self,minibatch_size):
+        """
+        Return the data as correctly formated pytorch tensors, 
+        """
 
-    def sample():
-        pass 
+        # get contigous index positions 
+
+        if self.is_full: 
+            # can sample from anywhere 
+            # catch condition where if you are at end of data , wrap around to retreive data} 
+            all_avail_indices = list(range(0,self.capacity))
+        else:
+            # get contigous index positions
+            all_avail_indices = list(range(0,self.counter+1))
+            
+        select_indices = random.sample(all_avail_indices,minibatch_size)    
+        state_data = torch.from_numpy(self.state[[select_indices]])
+        action_data = torch.from_numpy(self.action[[select_indices]])
+        reward_data = torch.from_numpy(self.reward[[select_indices]])
+        next_state_data = torch.from_numpy(self.next_state[[select_indices]])
+        done_data = torch.from_numpy(self.done[[select_indices]])
+
+        return state_data, action_data, reward_data, next_state_data, done_data 
          
