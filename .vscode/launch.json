@@ -9,7 +9,7 @@
             "type": "python",
             "request": "launch",
             "program": "train.py",
-            "args": ["--cfg", "config/Cartpole.yml"],
+            "args": ["--cfg", "config/CartpoleV0_cfg_test.yml"],
             "console": "integratedTerminal",
             "justMyCode": false
         },

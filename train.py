@@ -156,7 +156,7 @@ def train(cfg):
         for t in range(10000): # should the max time, per episode be set to 108,000 ? 
             sample = random.random()
             current_epsilon = epsilon_schedule.get_epsilon(timesteps_count)
-            tb_writer.add_scalar('Epsilon/train', current_epsilon)
+            tb_writer.add_scalar('Epsilon/train', current_epsilon, timesteps_count)
             train_eps_vals_tracker.append(current_epsilon)
             if sample > current_epsilon:
                 with torch.no_grad():
@@ -206,6 +206,8 @@ def train(cfg):
                 # LOOK AT STABLE BASELINES 3 , DO THE CLIPPING NEEDED 
                 #for param in policy_net.parameters():
                 #    param.grad.data.clamp_(-1,1)
+                max_grad_norm = 10
+                torch.nn.utils.clip_grad_norm_(policy_net.parameters(),max_grad_norm)
                 optimizer.step()
 
             if timesteps_count % target_network_update_frequency == 0:
@@ -214,8 +216,8 @@ def train(cfg):
             if done:
                 train_reward_tracker.append(sum(episode_reward))
                 train_ep_len_tracker.append(len(episode_reward))
-                tb_writer.add_scalar('Rewards/train', train_reward_tracker[-1])
-                tb_writer.add_scalar('Episode_Length/train',train_ep_len_tracker[-1])            
+                tb_writer.add_scalar('Rewards/train', train_reward_tracker[-1],episode)
+                tb_writer.add_scalar('Episode_Length/train',train_ep_len_tracker[-1],episode)            
                 print(f'Training - Total steps: {timesteps_count} \t Episode: {episode} \t Total reward: {train_reward_tracker[-1]}') 
                 break
             else: 
@@ -223,7 +225,7 @@ def train(cfg):
         
         # evaluate performance
         if episode % 10 == 0: 
-            evaluate_perf(env,policy_net,tb_writer,eval_reward_tracker,eval_ep_len_tracker)
+            evaluate_perf(env,policy_net,tb_writer,eval_reward_tracker,eval_ep_len_tracker,episode)
 
     # save the model 
     policy_net_file_save = f'{cfg.env_name}_DQN_policy_net.pth'
