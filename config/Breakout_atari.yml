@@ -19,5 +19,5 @@ no_op_max: 30
 
 
 # Run specific params
-tb_log_dir: runs/Cartpole-v0_1            # MAKE SURE TO CHANGE THIS !!!!!!!!!
+tb_log_dir: Breakout/Breakout_exp1            # MAKE SURE TO CHANGE THIS !!!!!!!!!
 num_episodes: 3000
