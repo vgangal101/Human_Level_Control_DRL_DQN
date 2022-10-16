@@ -2,7 +2,8 @@
 #from argparse import Action
 import jsonargparse
 from evaluate import evaluate_perf
-from preprocessing_wrappers import make_atari, wrap_deepmind, ImageToPyTorch
+from atari_preprocessing_wrappers import make_atari, wrap_deepmind, ImageToPyTorch
+from general_wrappers import PytorchObservation
 from model_arch import NatureCNN, BasicMLP
 import torch 
 import numpy as np 
@@ -32,13 +33,14 @@ def get_cfg():
     parser.add_argument('--update_frequency',type=int)
     parser.add_argument('--learning_rate',type=float)
     parser.add_argument('--gradient_momentum_alpha',type=float)
-    parser.add_argument('--min_squared_gradient',type=float)
+    parser.add_argument('--min_squared_gradient_eps',type=float)
     parser.add_argument('--initial_exploration',type=float)
     parser.add_argument('--final_exploration',type=float)
     parser.add_argument('--final_exploration_frame',type=float)
     parser.add_argument('--replay_start_size',type=int)
     parser.add_argument('--no_op_max',type=int)
     parser.add_argument('--tb_log_dir',type=str)
+    parser.add_argument('--num_episodes',type=int)
     cfg = parser.parse_args()
     return cfg
 
@@ -61,7 +63,7 @@ def populate_replay_memory(env,replay_memory,replay_start_size):
         action = env.action_space.sample()
         next_state, reward, done, info = env.step(action)
 
-        replay_memory.store(state,action,reward, next_state, done)
+        replay_memory.store(state.numpy(),action,reward, next_state.numpy(), done)
 
         if done: 
             state = env.reset()
@@ -91,26 +93,28 @@ def train(cfg):
     # utilities configuration 
 
     tb_log_dir = cfg.tb_log_dir
-    tb_writer = SummaryWriter(tb_log_dir)
+    tb_writer = SummaryWriter(tb_log_dir,flush_secs=10)
+
+    torch.set_default_dtype(torch.float32)
 
     # training relevent 
     num_episodes = cfg.num_episodes
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    if 'Cartpole' in cfg.env_name:
+    if 'CartPole' in cfg.env_name:
         env = gym.make(cfg.env_name)
-        
+        env = PytorchObservation(env)
     else: # atari setup
         env = ImageToPyTorch(wrap_deepmind(make_atari(cfg.env_name)))
     
 
     if cfg.network_arch == 'NatureCNN':
-        policy_net = NatureCNN(env.action_space.n).to(device)
-        target_net = NatureCNN(env.action_space.n).to(device)
-    elif cfg.network == 'BasicMLP':
-        policy_net = BasicMLP(env.observation_space.shape[0].n,env.action_space.n).to(device)
-        target_net = BasicMLP(env.observation_space.shape[0].n,env.action_space.n).to(device)
+        policy_net = NatureCNN(env.action_space.n).to(device).float()
+        target_net = NatureCNN(env.action_space.n).to(device).float()
+    elif cfg.network_arch == 'BasicMLP':
+        policy_net = BasicMLP(env.observation_space.shape[0],env.action_space.n).to(device).float()
+        target_net = BasicMLP(env.observation_space.shape[0],env.action_space.n).to(device).float()
         
 
     state_dim = env.observation_space.shape
@@ -156,19 +160,21 @@ def train(cfg):
             train_eps_vals_tracker.append(current_epsilon)
             if sample > current_epsilon:
                 with torch.no_grad():
-                    action = policy_net(state.to(device)).max(1)[1].view(1,1)
+                    action = policy_net(state.unsqueeze(0).to(device)).max(1)[1].view(1,1)
             else: 
                 action = torch.tensor([random.randrange(env.action_space.n)], device=device, dtype=torch.long)
 
             next_state, reward, done, info = env.step(action.item())
             timesteps_count += 1 
 
+            replay_mem.store(state.numpy(),action.item(),reward,next_state.numpy(),done)
+
             if not done: 
                 state = next_state
             else: 
                 state = None  
 
-            replay_mem.push(state,action.item(),reward,next_state,done)
+            
 
             if  timesteps_count % update_frequency == 0:  #and len(replay_mem) > replay_start_size: 
                 # do learning 
@@ -181,7 +187,7 @@ def train(cfg):
                 #################################
 
                 # state_action_values. what will the policy do
-                state_action_values =  policy_net(state_batch).gather(1,action_batch)
+                state_action_values =  policy_net(state_batch.to(device)).cpu().gather(1,action_batch.unsqueeze(1))
 
 
                 # compute next state values , i.e. the targets 
@@ -189,14 +195,14 @@ def train(cfg):
                 # next_state_values[non_final_mask] = target_net(non_final_next_states).max(1)[0].detach()
 
                 # expected_state_action_values = (next_state_values * discount_factor) + reward_batch
-                expected_state_action_values = reward_batch + (1-done_batch) * discount_factor * target_net(next_state_batch).max(1)[0].detach()
+                expected_state_action_values = reward_batch + (1-done_batch) * discount_factor * target_net(next_state_batch.to(device)).max(1)[0].detach().cpu()
 
 
                 loss = F.smooth_l1_loss(state_action_values, expected_state_action_values.unsqueeze(1))
-
+                train_q_val_tracker.append(loss.item())
+                
                 optimizer.zero_grad()
                 loss.backward()
-                train_q_val_tracker.append(loss.item)
                 # LOOK AT STABLE BASELINES 3 , DO THE CLIPPING NEEDED 
                 #for param in policy_net.parameters():
                 #    param.grad.data.clamp_(-1,1)

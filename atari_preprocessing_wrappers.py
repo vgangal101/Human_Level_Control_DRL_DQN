@@ -7,6 +7,7 @@ import gym
 from gym import spaces
 import cv2
 cv2.ocl.setUseOpenCL(False)
+import torch
 
 class TimeLimit(gym.Wrapper):
     def __init__(self, env, max_episode_steps=None):
@@ -319,4 +320,4 @@ class ImageToPyTorch(gym.ObservationWrapper):
                                 old_shape[0], old_shape[1]),
                                 dtype=np.float32)
     def observation(self, observation):
-      return np.moveaxis(observation, 2, 0)
+      return torch.tensor(np.moveaxis(observation, 2, 0))

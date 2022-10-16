@@ -72,11 +72,11 @@ class ReplayMemory():
             all_avail_indices = list(range(0,self.counter+1))
             
         select_indices = random.sample(all_avail_indices,minibatch_size)    
-        state_data = torch.from_numpy(self.state[[select_indices]])
-        action_data = torch.from_numpy(self.action[[select_indices]])
-        reward_data = torch.from_numpy(self.reward[[select_indices]])
-        next_state_data = torch.from_numpy(self.next_state[[select_indices]])
-        done_data = torch.from_numpy(self.done[[select_indices]])
+        state_data = torch.from_numpy(self.state[[select_indices]]).type(torch.float32)
+        action_data = torch.from_numpy(self.action[[select_indices]]).type(torch.int64)
+        reward_data = torch.from_numpy(self.reward[[select_indices]]).type(torch.float32)
+        next_state_data = torch.from_numpy(self.next_state[[select_indices]]).type(torch.float32)
+        done_data = torch.from_numpy(self.done[[select_indices]]).type(torch.int64)
 
         return state_data.squeeze(), action_data.squeeze(), reward_data.squeeze(), next_state_data.squeeze(), done_data.squeeze() 
         

@@ -19,7 +19,7 @@ def evaluate_perf(env,policy_net,tb_writer,eval_rew_tracker,eval_ep_len_tracker)
             sample = random.random()
             if sample > 0.05:
                 with torch.no_grad():
-                    action = policy_net(state.to(device)).max(1)[1].view(1,1)
+                    action = policy_net(state.unsqueeze(0).to(device)).max(1)[1].view(1,1)
             else: 
                 action = torch.tensor([random.randrange(env.action_space.n)], device=device, dtype=torch.long)
 
