@@ -1,4 +1,4 @@
-env_name: PongNoFrameskip-v4
+env_name: BreakoutNoFrameskip-v4
 network_arch: NatureCNN
 minibatch_size: 32 
 replay_memory_size: 100000
