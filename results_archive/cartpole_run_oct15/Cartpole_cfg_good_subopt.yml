@@ -1,0 +1,22 @@
+env_name: CartPole-v1
+network_arch: BasicMLP
+minibatch_size: 32 # can consider changing this 
+replay_memory_size: 10000
+agent_history_length: 1
+target_network_update_frequency: 1000
+discount_factor: 0.99
+action_repeat: 1  # what about this ? 
+update_frequency: 1 # what should this be ?  
+learning_rate: 0.00025  # what should this be ? 
+gradient_momentum_alpha: 0.95 # what should this be ? 
+min_squared_gradient_eps: 0.01  # what should this be ? 
+initial_exploration: 1 
+final_exploration: 0.1 
+final_exploration_frame: 1000 # what should this be ? 
+replay_start_size: 7000
+no_op_max: 30 
+
+
+# Run specific params
+tb_log_dir: runs/Cartpole-v1_1            # MAKE SURE TO CHANGE THIS !!!!!!!!!
+num_episodes: 3000

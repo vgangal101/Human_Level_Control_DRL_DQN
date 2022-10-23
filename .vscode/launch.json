@@ -1,0 +1,35 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Train DQN Cartpole",
+            "type": "python",
+            "request": "launch",
+            "program": "train.py",
+            "args": ["--cfg", "config/CartpoleV0_cfg_test.yml"],
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
+        {
+            "name": "Train DQN Pong",
+            "type": "python",
+            "request": "launch",
+            "program": "train.py",
+            "args": ["--cfg", "config/Pong_atari.yml"],
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
+        {
+            "name": "Train DQN Breakout",
+            "type": "python",
+            "request": "launch",
+            "program": "train.py",
+            "args": ["--cfg", "config/Breakout_atari.yml"],
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
+    ]
+}
