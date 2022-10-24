@@ -146,28 +146,6 @@ def train(cfg):
     eval_reward_tracker = []
     eval_ep_len_tracker = []
     
-    timesteps_total = 0
-
-    for ep_num in range(5000):
-        done = False 
-        obs = env.reset()
-        timestep_start = timesteps_total
-        timestep_end = timesteps_total
-        while not done:  # for 1 episode 
-            current_epsilon = annealed_epsilon(timesteps_total)
-
-            # With probability epsilon select a random action At,
-            # otherwise select At = argmax a Q(preproc(St),a,theta)
-            action = get_action(obs, current_epsilon)
-            
-            # execute action At in emulator and observe reward Rt and image Xt+1
-            next_obs, reward, done, info = env.step(action)
-
-            reward_tracker.append(reward)
-            
-            experience = (obs, action, reward, next_obs, done)
-
-            replay_mem.store(experience)
 
     #num_episodes = 2000
     #num_episodes = 5000
@@ -249,35 +227,20 @@ def train(cfg):
         if episode % 10 == 0: 
             evaluate_perf(env,policy_net,tb_writer,eval_reward_tracker,eval_ep_len_tracker,episode)
 
-        # DO A EVALUATION EPISODE - 10 eval episodes , take average of return , episode length  
-
+    # save the model 
+    policy_net_file_save = f'{cfg.env_name}_DQN_policy_net.pth'
+    target_net_file_save = f'{cfg.env_name}_DQN_target_net.pth'
 
     torch.save(policy_net,policy_net_file_save)
     torch.save(target_net,target_net_file_save)
 
-    # save policy network and 
-    torch.save(policy_q_network,'policy_q_network.pt')
-
-    graph_reward(reward_tracker,eval=False)
-    graph_episode_length(episode_length_tracker,eval=False)
-
-    return policy_q_network
-
-
-
-def main():
-
-    #args = get_args()
-
-    env = gym.make('PongNoFrameskip-v4',obs_type='grayscale')
-    env = env.unwrapped
-    print(env)
-    train_env = train_process_env(env)
-    #print(env)
-    agent_network = train(train_env)
-    eval_env = evaluation_process_env(env)
-
-    evaluate(eval_env, agent_network)
+    # graph the training curves 
+    graph_rewards(train_reward_tracker,phase='train')
+    graph_ep_len(train_ep_len_tracker,phase='train')
+    graph_q_vals(train_q_val_tracker,phase='train')
+    
+    graph_rewards(eval_reward_tracker,phase='eval')
+    graph_ep_len(eval_ep_len_tracker,phase='eval')
 
 
 
