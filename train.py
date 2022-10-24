@@ -228,8 +228,8 @@ def train(cfg):
                 # LOOK AT STABLE BASELINES 3 , DO THE CLIPPING NEEDED 
                 #for param in policy_net.parameters():
                 #    param.grad.data.clamp_(-1,1)
-                max_grad_norm = 10
-                torch.nn.utils.clip_grad_norm_(policy_net.parameters(),max_grad_norm)
+                #max_grad_norm = 10
+                #torch.nn.utils.clip_grad_norm_(policy_net.parameters(),max_grad_norm)
                 optimizer.step()
 
             if timesteps_count % target_network_update_frequency == 0:
