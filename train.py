@@ -147,9 +147,6 @@ def train(cfg):
     eval_ep_len_tracker = []
     
 
-    #num_episodes = 2000
-    #num_episodes = 5000
-    #num_episodes = 20
     for episode in range(num_episodes):
         state = env.reset()
         episode_reward = []
@@ -179,13 +176,10 @@ def train(cfg):
             if  timesteps_count % update_frequency == 0:  #and len(replay_mem) > replay_start_size: 
                 # do learning 
                 
-                # THIS BLOCK NEEDS TO BE REDONE DEPENDANT ON REPLAY MEMORY DATA STRUCTURE
-                ##################################
                 state_batch, action_batch, reward_batch, next_state_batch, done_batch = replay_mem.sample(minibatch_size)
                 
                 
-                #################################
-
+                
                 # state_action_values. what will the policy do
                 state_action_values =  policy_net(state_batch.to(device)).cpu().gather(1,action_batch.unsqueeze(1))
 
@@ -203,9 +197,6 @@ def train(cfg):
                 
                 optimizer.zero_grad()
                 loss.backward()
-                # LOOK AT STABLE BASELINES 3 , DO THE CLIPPING NEEDED 
-                #for param in policy_net.parameters():
-                #    param.grad.data.clamp_(-1,1)
                 max_grad_norm = 10
                 torch.nn.utils.clip_grad_norm_(policy_net.parameters(),max_grad_norm)
                 optimizer.step()
